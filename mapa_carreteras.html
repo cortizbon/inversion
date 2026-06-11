@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carreteras de Colombia · Inversión 2026</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14171c; --ink-2:#1c2026; --ink-3:#262b33;
+    --paper:#f3efe6; --muted:#9aa3af; --line:#333a44;
+    --center:#ffcf3f;           /* amarillo línea central (firma) */
+    --c0:#c0392b; --c1:#e8743b; --c2:#f4a72c; --c3:#7cb342; --c4:#1a8a4a;
+    --txt:#e9ecf0;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--ink);color:var(--txt)}
+  #app{display:grid;grid-template-columns:380px 1fr;height:100vh;width:100%}
+
+  /* ---------- Panel lateral ---------- */
+  #panel{background:var(--ink);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .head{padding:22px 22px 16px;border-bottom:1px dashed var(--line);position:relative}
+  .eyebrow{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.22em;color:var(--center);text-transform:uppercase}
+  h1{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:30px;line-height:.98;margin:8px 0 4px;letter-spacing:.01em}
+  .sub{font-size:12.5px;color:var(--muted);line-height:1.45}
+  /* línea central de carretera como firma */
+  .road-rule{height:6px;margin-top:14px;border-radius:3px;
+    background:repeating-linear-gradient(90deg,var(--center) 0 22px,transparent 22px 40px),#2b3038;
+    background-blend-mode:normal}
+
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+  .stat{background:var(--ink);padding:14px 16px}
+  .stat .k{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+  .stat .v{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:23px;margin-top:3px}
+  .stat.wide{grid-column:1 / -1}
+  .gbar{height:8px;background:var(--ink-3);border-radius:5px;overflow:hidden;margin-top:9px}
+  .gbar > i{display:block;height:100%;background:linear-gradient(90deg,var(--c2),var(--c4))}
+
+  .legend{padding:12px 22px;border-bottom:1px dashed var(--line)}
+  .legend .lt{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+  .legend ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px 14px}
+  .legend li{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#c9cfd6}
+  .legend .sw{width:16px;height:4px;border-radius:2px}
+
+  /* ---------- Ficha activa ---------- */
+  .ficha{padding:16px 22px;border-bottom:1px dashed var(--line);min-height:150px}
+  .ficha .tag{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+  .ficha .empty{color:var(--muted);font-size:13px;line-height:1.5;margin-top:10px}
+  .ficha h2{font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:19px;line-height:1.08;margin:8px 0 2px}
+  .ficha .ent{font-size:11.5px;color:var(--muted);margin-bottom:12px}
+  .row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid #20242b}
+  .row .lab{font-size:12px;color:#b9c0c9}
+  .row .num{font-family:'Space Mono',monospace;font-size:13.5px;font-weight:700}
+  .pbar{height:9px;background:var(--ink-3);border-radius:5px;overflow:hidden;margin:10px 0 4px}
+  .pbar > i{display:block;height:100%;border-radius:5px;transition:width .25s}
+  .ppct{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:28px;line-height:1}
+
+  /* ---------- Lista de rutas ---------- */
+  .listwrap{flex:1;min-height:0;display:flex;flex-direction:column}
+  .listwrap .lh{padding:11px 22px 8px;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;display:flex;justify-content:space-between}
+  .list{flex:1;overflow-y:auto;padding:0 12px 14px}
+  .item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer;transition:background .12s}
+  .item:hover,.item.active{background:var(--ink-2)}
+  .item .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 0 3px rgba(255,255,255,.04)}
+  .item .nm{font-size:12px;line-height:1.25;flex:1;color:#dde2e8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .item .pc{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);flex:0 0 auto}
+
+  /* ---------- Mapa ---------- */
+  #map{height:100%;width:100%;background:#aab7c4}
+  .leaflet-container{font-family:'Inter',sans-serif}
+  .cursor-tip{position:fixed;z-index:1200;pointer-events:none;background:var(--ink);color:var(--txt);
+    border:1px solid var(--line);border-left:3px solid var(--center);padding:7px 10px;border-radius:6px;
+    font-size:12px;max-width:260px;box-shadow:0 6px 22px rgba(0,0,0,.4);display:none}
+  .cursor-tip b{font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:13.5px}
+  .cursor-tip .ct-pct{font-family:'Space Mono',monospace;color:var(--center)}
+
+  .mobile-handle{display:none}
+  @media (max-width:820px){
+    #app{grid-template-columns:1fr;grid-template-rows:46vh 1fr}
+    #map{order:-1}
+    #panel{border-right:none;border-top:1px solid var(--line)}
+    h1{font-size:26px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <div class="head">
+      <div class="eyebrow">Inversión pública · 2026</div>
+      <h1>Carreteras<br>de Colombia</h1>
+      <div class="sub">Proyectos del sector transporte que intervienen vías nacionales. Pasa el mouse sobre una carretera para ver su avance.</div>
+      <div class="road-rule"></div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="k">Carreteras</div><div class="v" id="s-num">–</div></div>
+      <div class="stat"><div class="k">% ejec. global</div><div class="v" id="s-pct">–</div></div>
+      <div class="stat wide">
+        <div class="k">Asignado vs. ejecutado</div>
+        <div class="v" id="s-asig">–</div>
+        <div class="gbar"><i id="s-gbar" style="width:0"></i></div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-top:6px">
+          Ejecutado: <span id="s-ejec">–</span></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="lt">% de ejecución</div>
+      <ul>
+        <li><span class="sw" style="background:var(--c0)"></span>0%</li>
+        <li><span class="sw" style="background:var(--c1)"></span>1–9%</li>
+        <li><span class="sw" style="background:var(--c2)"></span>10–24%</li>
+        <li><span class="sw" style="background:var(--c3)"></span>25–49%</li>
+        <li><span class="sw" style="background:var(--c4)"></span>≥50%</li>
+      </ul>
+    </div>
+
+    <div class="ficha" id="ficha">
+      <div class="tag">Ficha de ruta</div>
+      <div class="empty" id="ficha-empty">Ninguna carretera seleccionada.<br>Desliza el cursor por el mapa o por la lista para ver el monto asignado, el monto ejecutado y el avance.</div>
+      <div id="ficha-body" style="display:none">
+        <h2 id="f-name"></h2>
+        <div class="ent" id="f-ent"></div>
+        <div style="display:flex;align-items:flex-end;gap:12px">
+          <div class="ppct" id="f-pct"></div>
+          <div style="flex:1">
+            <div class="pbar"><i id="f-bar"></i></div>
+            <div style="font-size:10.5px;color:var(--muted);font-family:'Space Mono',monospace">AVANCE DE EJECUCIÓN</div>
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="row"><span class="lab">Monto asignado</span><span class="num" id="f-asig"></span></div>
+          <div class="row"><span class="lab">Monto ejecutado</span><span class="num" id="f-ejec"></span></div>
+          <div class="row"><span class="lab">Por ejecutar</span><span class="num" id="f-rest"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="listwrap">
+      <div class="lh"><span>Todas las rutas</span><span id="list-count"></span></div>
+      <div class="list" id="list"></div>
+    </div>
+  </aside>
+
+  <div id="map"></div>
+</div>
+<div class="cursor-tip" id="tip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const ROADS = [{"nombre": "Carretera Turbo-Cartagena-Barranquilla-Santa Marta-Riohacha-Paraguachón", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 375467500000.0, "monto_ejecutado": 2377130758.14, "pct": 0.6, "waypoints": [{"name": "Turbo", "lat": 8.0917, "lng": -76.7283}, {"name": "Cartagena", "lat": 10.391, "lng": -75.4794}, {"name": "Barranquilla", "lat": 10.9685, "lng": -74.7813}, {"name": "Santa Marta", "lat": 11.2408, "lng": -74.199}, {"name": "Riohacha", "lat": 11.5444, "lng": -72.9072}, {"name": "Paraguachón", "lat": 11.4167, "lng": -71.9333}]}, {"nombre": "Via Puerto Salgar-Barrancabermeja", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 367475464543.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Puerto Salgar", "lat": 5.4658, "lng": -74.6494}, {"name": "Barrancabermeja", "lat": 7.0653, "lng": -73.8547}]}, {"nombre": "Corredor Rumichaca - Pasto", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 358127983982.0, "monto_ejecutado": 88666535429.0, "pct": 24.8, "waypoints": [{"name": "Rumichaca", "lat": 0.8167, "lng": -77.6667}, {"name": "Pasto", "lat": 1.2136, "lng": -77.2811}]}, {"nombre": "Vía Mulalo - Loboguerrero", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 345161334205.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Mulalo", "lat": 3.55, "lng": -76.45}, {"name": "Loboguerrero", "lat": 3.7833, "lng": -76.55}]}, {"nombre": "Corredor Vial Pamplona - Cucúta", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 318190481286.0, "monto_ejecutado": 58885946526.0, "pct": 18.5, "waypoints": [{"name": "Pamplona", "lat": 7.3754, "lng": -72.6488}, {"name": "Cucúta", "lat": 7.8939, "lng": -72.5078}]}, {"nombre": "Carretera Buenaventura-Bogotá-Villavicencio-Puerto Gaitán-El Porvenir-Puerto Carreño", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 313140455408.0, "monto_ejecutado": 21008002016.55, "pct": 6.7, "waypoints": [{"name": "Buenaventura", "lat": 3.8801, "lng": -77.0313}, {"name": "Villavicencio", "lat": 4.142, "lng": -73.6266}, {"name": "Puerto Gaitán", "lat": 4.3119, "lng": -72.0833}, {"name": "El Porvenir", "lat": 4.1167, "lng": -69.7}, {"name": "Puerto Carreño", "lat": 6.1889, "lng": -67.4859}]}, {"nombre": "Corredor Villavicencio - Yopal", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 299641352504.0, "monto_ejecutado": 59601362590.0, "pct": 19.9, "waypoints": [{"name": "Villavicencio", "lat": 4.142, "lng": -73.6266}, {"name": "Yopal", "lat": 5.3378, "lng": -72.3958}]}, {"nombre": "Corredor Popayan - Santander De Quilichao", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 253911263548.0, "monto_ejecutado": 70754759322.0, "pct": 27.9, "waypoints": [{"name": "Popayan", "lat": 2.4448, "lng": -76.6147}, {"name": "Santander De Quilichao", "lat": 3.0089, "lng": -76.4847}]}, {"nombre": "Corredor? Buenaventura - Loboguerrero - Buga", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 247257176862.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Buenaventura", "lat": 3.8801, "lng": -77.0313}, {"name": "Loboguerrero", "lat": 3.7833, "lng": -76.55}, {"name": "Buga", "lat": 3.9008, "lng": -76.2978}]}, {"nombre": "Corredor Santana - Mocoa - Neiva", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 233962050936.0, "monto_ejecutado": 59334662967.0, "pct": 25.4, "waypoints": [{"name": "Santana", "lat": 5.95, "lng": -73.45}, {"name": "Mocoa", "lat": 1.1519, "lng": -76.6483}, {"name": "Neiva", "lat": 2.9273, "lng": -75.2819}]}, {"nombre": "Corredor Cartagena - Barranquilla Y Circunvalar De La Prosperidad", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 228232198899.0, "monto_ejecutado": 49587776026.0, "pct": 21.7, "waypoints": [{"name": "Cartagena", "lat": 10.391, "lng": -75.4794}, {"name": "Barranquilla", "lat": 10.9685, "lng": -74.7813}]}, {"nombre": "Vía El Aro (Antioquia), Arauquita-Saravena (Arauca), Mompox-Pinillos (Bolívar), La Balsa-Suárez-Morales (Cauca), Pivijay", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 218950000000.0, "monto_ejecutado": 3301558270.32, "pct": 1.5, "waypoints": [{"name": "Saravena", "lat": 6.9542, "lng": -71.8728}, {"name": "Pinillos", "lat": 8.9156, "lng": -74.4631}, {"name": "Suárez", "lat": 2.95, "lng": -76.7}, {"name": "Morales", "lat": 2.7547, "lng": -76.6306}, {"name": "La Llanada", "lat": 1.4733, "lng": -77.5803}, {"name": "Sotomayor", "lat": 1.45, "lng": -77.55}, {"name": "Convención", "lat": 8.4708, "lng": -73.3375}, {"name": "San Cristóbal", "lat": 8.9, "lng": -74.05}, {"name": "San Vicente", "lat": 2.1492, "lng": -74.7681}]}, {"nombre": "Carretera Tumaco-Pasto-Mocoa De La Transversal Tumaco-Mocoa", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 185068591340.0, "monto_ejecutado": 805473570.73, "pct": 0.4, "waypoints": [{"name": "Tumaco", "lat": 1.7986, "lng": -78.8156}, {"name": "Pasto", "lat": 1.2136, "lng": -77.2811}, {"name": "Mocoa", "lat": 1.1519, "lng": -76.6483}]}, {"nombre": "Via Sabana De Torres - Curumani", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 179912305650.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Sabana De Torres", "lat": 7.3914, "lng": -73.4914}, {"name": "Curumani", "lat": 9.1989, "lng": -73.5417}]}, {"nombre": "Carretera Las Animas-Santa Cecilia-Pueblo Rico-Fresno-Bogota", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 175355341556.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Las Animas", "lat": 5.3, "lng": -76.7}, {"name": "Santa Cecilia", "lat": 5.35, "lng": -76.2}, {"name": "Pueblo Rico", "lat": 5.2236, "lng": -76.0297}, {"name": "Fresno", "lat": 5.1531, "lng": -75.0356}]}, {"nombre": "Carretera Santa Fe De Bogotá - Chiquinquirá- Bucaramanga- San Alberto De La Troncal Central", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 149000000000.0, "monto_ejecutado": 1454803133.21, "pct": 1.0, "waypoints": [{"name": "Santa Fe De Bogotá", "lat": 4.6097, "lng": -74.0817}, {"name": "Chiquinquirá", "lat": 5.6178, "lng": -73.8181}, {"name": "Bucaramanga", "lat": 7.1193, "lng": -73.1227}, {"name": "San Alberto", "lat": 7.7611, "lng": -73.3911}]}, {"nombre": "Corredor Honda - Puerto Salgar - Girardot", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 148478830384.0, "monto_ejecutado": 20190328806.0, "pct": 13.6, "waypoints": [{"name": "Honda", "lat": 5.1933, "lng": -74.7375}, {"name": "Puerto Salgar", "lat": 5.4658, "lng": -74.6494}, {"name": "Girardot", "lat": 4.3047, "lng": -74.8011}]}, {"nombre": "Carretera Villagarzón-La Mina-San Juan De Arama-Villavicencio-Tame-Saravena-Puente Internacional Río Arauca", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 133716024668.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Villagarzón", "lat": 1.0306, "lng": -76.6181}, {"name": "La Mina", "lat": 1.05, "lng": -76.5}, {"name": "San Juan De Arama", "lat": 3.3447, "lng": -73.8744}, {"name": "Villavicencio", "lat": 4.142, "lng": -73.6266}, {"name": "Tame", "lat": 6.4603, "lng": -71.7339}, {"name": "Saravena", "lat": 6.9542, "lng": -71.8728}]}, {"nombre": "Construcción , Mejoramiento, Mantenimiento Y Rehabilitación De Las Vías Del Chocó: Animas - Nuqui; Quibdó - Pereira Y Qu", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 105000000000.0, "monto_ejecutado": 4022569522.9, "pct": 3.8, "waypoints": [{"name": "Nuqui", "lat": 5.7089, "lng": -77.2706}, {"name": "Quibdó", "lat": 5.6919, "lng": -76.6583}, {"name": "Pereira", "lat": 4.8133, "lng": -75.6961}, {"name": "Medellín", "lat": 6.2442, "lng": -75.5812}]}, {"nombre": "Carretera Los Curos - Malaga", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 85000000000.0, "monto_ejecutado": 1076051285.65, "pct": 1.3, "waypoints": [{"name": "Los Curos", "lat": 6.9, "lng": -73.05}, {"name": "Malaga", "lat": 6.7019, "lng": -72.7322}]}, {"nombre": "Carretera Puerto Boyacá - Chiquinquirá - Villa De Leyva - Tunja - Ramiriqui - Miraflores - Monterrey", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 82200000000.0, "monto_ejecutado": 333927604.14, "pct": 0.4, "waypoints": [{"name": "Chiquinquirá", "lat": 5.6178, "lng": -73.8181}, {"name": "Villa De Leyva", "lat": 5.6339, "lng": -73.5269}, {"name": "Tunja", "lat": 5.5353, "lng": -73.3678}, {"name": "Ramiriqui", "lat": 5.4006, "lng": -73.3344}, {"name": "Miraflores", "lat": 5.1972, "lng": -73.1456}, {"name": "Monterrey", "lat": 4.8783, "lng": -72.8917}]}, {"nombre": "Corredor Puerta De Hierro - Palmar De Varela Y Carreto - Cruz Del Viso", "entidad": "Agencia Nacional de Infraestructura - ANI - Transporte", "monto_asignado": 80015521846.0, "monto_ejecutado": 16817128222.0, "pct": 21.0, "waypoints": [{"name": "Puerta De Hierro", "lat": 9.35, "lng": -74.9}, {"name": "Palmar De Varela", "lat": 10.7411, "lng": -74.7544}, {"name": "Cruz Del Viso", "lat": 10.05, "lng": -75.05}]}, {"nombre": "Carretera Plato - Salamina - Palermo", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 79710683112.0, "monto_ejecutado": 53473402.57, "pct": 0.1, "waypoints": [{"name": "Plato", "lat": 9.7975, "lng": -74.7836}, {"name": "Salamina", "lat": 10.4914, "lng": -74.7917}, {"name": "Palermo", "lat": 10.7361, "lng": -74.7414}]}, {"nombre": "Carretera Rumichaca-Palmira-Cerrito-Medellín-Sincelejo-Barranquilla", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 60000000000.0, "monto_ejecutado": 2028968601.69, "pct": 3.4, "waypoints": [{"name": "Rumichaca", "lat": 0.8167, "lng": -77.6667}, {"name": "Palmira", "lat": 3.5394, "lng": -76.3036}, {"name": "Cerrito", "lat": 3.6856, "lng": -76.3142}, {"name": "Medellín", "lat": 6.2442, "lng": -75.5812}, {"name": "Sincelejo", "lat": 9.3047, "lng": -75.3978}, {"name": "Barranquilla", "lat": 10.9685, "lng": -74.7813}]}, {"nombre": "Carretera Medellín-Santuario-Puerto Triunfo-Cruce Ruta 45 Y Tobiagrande-Santafe De Bogotá", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 50500000000.0, "monto_ejecutado": 1426029544.78, "pct": 2.8, "waypoints": [{"name": "Medellín", "lat": 6.2442, "lng": -75.5812}, {"name": "Santuario", "lat": 6.1378, "lng": -75.2647}, {"name": "Puerto Triunfo", "lat": 5.8736, "lng": -74.6411}, {"name": "Santafe De Bogotá", "lat": 4.6097, "lng": -74.0817}]}, {"nombre": "Carretera Puerto Araujo - Cimitarra - Landazuri - Velez - Barbosa - Tunja De La Transversal Del Carare", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 50000000000.0, "monto_ejecutado": 1787825904.78, "pct": 3.6, "waypoints": [{"name": "Puerto Araujo", "lat": 6.5667, "lng": -73.85}, {"name": "Cimitarra", "lat": 6.3169, "lng": -73.9508}, {"name": "Landazuri", "lat": 6.2186, "lng": -73.8108}, {"name": "Velez", "lat": 6.0103, "lng": -73.6728}, {"name": "Barbosa", "lat": 5.9314, "lng": -73.6175}, {"name": "Tunja", "lat": 5.5353, "lng": -73.3678}]}, {"nombre": "Carretera Popayán (Crucero) - Totoro - Guadualejo - Puerto Valencia - La Plata - Laberinto Y Alternas De La Transversal ", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 47591683112.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Popayán", "lat": 2.4448, "lng": -76.6147}, {"name": "Totoro", "lat": 2.5125, "lng": -76.4019}, {"name": "Guadualejo", "lat": 2.5, "lng": -76.0}, {"name": "Puerto Valencia", "lat": 2.45, "lng": -75.95}, {"name": "La Plata", "lat": 2.3897, "lng": -75.8908}, {"name": "Laberinto", "lat": 2.4, "lng": -75.9}]}, {"nombre": "Carretera San Roque - La Paz - San Juan Del Cesar - Buenavista Y Valledupar - La Paz", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 43310683112.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "San Roque", "lat": 6.4856, "lng": -75.0231}, {"name": "La Paz", "lat": 10.3878, "lng": -73.1736}, {"name": "Buenavista", "lat": 10.5817, "lng": -74.97}, {"name": "La Paz", "lat": 10.3878, "lng": -73.1736}]}, {"nombre": "Carretera Bogotá - Tunja - Duitama - Soata - Málaga - Pamplona - Cúcuta - Puerto Santander - Puente Internacional", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 41747097498.0, "monto_ejecutado": 1296715818.39, "pct": 3.1, "waypoints": [{"name": "Tunja", "lat": 5.5353, "lng": -73.3678}, {"name": "Duitama", "lat": 5.8245, "lng": -73.0341}, {"name": "Soata", "lat": 6.3327, "lng": -72.6837}, {"name": "Málaga", "lat": 6.7019, "lng": -72.7322}, {"name": "Pamplona", "lat": 7.3754, "lng": -72.6488}, {"name": "Cúcuta", "lat": 7.8939, "lng": -72.5078}]}, {"nombre": "Carretera Popayán - Patico - Paletará - Isnos - Pitalito - San Agustín De Los Circuitos Ecoturísticos Huila, Cauca", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 40000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Popayán", "lat": 2.4448, "lng": -76.6147}, {"name": "Patico", "lat": 2.3, "lng": -76.3}, {"name": "Paletará", "lat": 2.2, "lng": -76.4}, {"name": "Isnos", "lat": 1.9325, "lng": -76.2133}, {"name": "Pitalito", "lat": 1.8528, "lng": -76.0508}, {"name": "San Agustín", "lat": 1.88, "lng": -76.2706}]}, {"nombre": "Vía Belen - Socha - Sacama - La Cabuya", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 37350000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Belen", "lat": 5.9897, "lng": -72.9136}, {"name": "Socha", "lat": 5.9994, "lng": -72.6914}, {"name": "Sacama", "lat": 6.0972, "lng": -72.2469}, {"name": "La Cabuya", "lat": 6.43, "lng": -71.95}]}, {"nombre": "Carretera Duitama-Sogamoso-Aguazul", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 36676000000.0, "monto_ejecutado": 1580741207.41, "pct": 4.3, "waypoints": [{"name": "Duitama", "lat": 5.8245, "lng": -73.0341}, {"name": "Sogamoso", "lat": 5.7146, "lng": -72.9336}, {"name": "Aguazul", "lat": 5.1736, "lng": -72.5556}]}, {"nombre": "Carretera Puerta De Hierro-Magangué- Mompox-El Banco-Arjona-Cuatrovientos-Codazzi Y El Banco-Tamalameque-El Burro", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 35000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Puerta De Hierro", "lat": 9.35, "lng": -74.9}, {"name": "Magangué", "lat": 9.2417, "lng": -74.7547}, {"name": "Mompox", "lat": 9.2417, "lng": -74.4258}, {"name": "El Banco", "lat": 9.0019, "lng": -73.9758}, {"name": "Arjona", "lat": 10.2547, "lng": -75.3439}, {"name": "Cuatrovientos", "lat": 8.6, "lng": -73.6}, {"name": "Codazzi", "lat": 10.0381, "lng": -73.2386}, {"name": "Tamalameque", "lat": 8.8636, "lng": -73.8136}, {"name": "El Burro", "lat": 8.9, "lng": -73.7}]}, {"nombre": "Carretera Cartago-Alcala-Montenegro-Armenia", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 28925569260.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Cartago", "lat": 4.747, "lng": -75.9116}, {"name": "Alcala", "lat": 4.6747, "lng": -75.7806}, {"name": "Montenegro", "lat": 4.5667, "lng": -75.7494}, {"name": "Armenia", "lat": 4.5339, "lng": -75.6811}]}, {"nombre": "Carretera Colombia - La Uribe, Conexion Pacifico - Orinoquia", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 23140455408.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Colombia", "lat": 3.3756, "lng": -74.8025}, {"name": "La Uribe", "lat": 3.2403, "lng": -74.5306}, {"name": "Orinoquia", "lat": 4.5, "lng": -72.0}]}, {"nombre": "Carretera Cali - Loboguerrero De Los Accesos A Cali", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 23000000000.0, "monto_ejecutado": 330450540.64, "pct": 1.4, "waypoints": [{"name": "Cali", "lat": 3.4516, "lng": -76.532}, {"name": "Loboguerrero", "lat": 3.7833, "lng": -76.55}]}, {"nombre": "Vía Al Mar: Popayán - Guapi; Argelia - El Plateado - López De Micay - Timbiquí", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 21500000000.0, "monto_ejecutado": 1262923926.71, "pct": 5.9, "waypoints": [{"name": "Popayán", "lat": 2.4448, "lng": -76.6147}, {"name": "Guapi", "lat": 2.5708, "lng": -77.8881}, {"name": "Argelia", "lat": 2.2556, "lng": -77.2492}, {"name": "El Plateado", "lat": 2.35, "lng": -77.0}, {"name": "López De Micay", "lat": 2.85, "lng": -77.25}, {"name": "Timbiquí", "lat": 2.7781, "lng": -77.6661}]}, {"nombre": "Carretera San Gil - Onzaga - Santa Rosita", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 20826409867.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "San Gil", "lat": 6.5544, "lng": -73.1336}, {"name": "Onzaga", "lat": 6.3431, "lng": -72.8181}, {"name": "Santa Rosita", "lat": 6.4, "lng": -72.9}]}, {"nombre": "Vía Pasto - Estanquillo", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 20000000000.0, "monto_ejecutado": 392652345.17, "pct": 2.0, "waypoints": [{"name": "Pasto", "lat": 1.2136, "lng": -77.2811}, {"name": "Estanquillo", "lat": 1.0, "lng": -77.0}]}, {"nombre": "Carretera Santa Lucia - Moñitos", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 15000000000.0, "monto_ejecutado": 657287803.57, "pct": 4.4, "waypoints": [{"name": "Santa Lucia", "lat": 9.45, "lng": -75.8}, {"name": "Moñitos", "lat": 9.2461, "lng": -76.1289}]}, {"nombre": "Carretera Puerto Rey - Montería - Cereté - La Ye - El Viajano - Guayepo - Majagual De La Transversal Puerto Rey - Monter", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 10300000000.0, "monto_ejecutado": 326864353.31, "pct": 3.2, "waypoints": [{"name": "Puerto Rey", "lat": 8.85, "lng": -76.25}, {"name": "Montería", "lat": 8.7479, "lng": -75.8814}, {"name": "Cereté", "lat": 8.8853, "lng": -75.7919}, {"name": "La Ye", "lat": 8.5, "lng": -75.4}, {"name": "El Viajano", "lat": 8.6, "lng": -75.2}, {"name": "Guayepo", "lat": 8.7, "lng": -75.0}, {"name": "Majagual", "lat": 8.5403, "lng": -74.6294}]}, {"nombre": "Carretera Neiva - Platanillal - Balsillas - San Vicente", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 10000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Neiva", "lat": 2.9273, "lng": -75.2819}, {"name": "Platanillal", "lat": 2.7, "lng": -75.4}, {"name": "Balsillas", "lat": 2.0, "lng": -75.7}, {"name": "San Vicente", "lat": 2.1492, "lng": -74.7681}]}, {"nombre": "Carretera Guachucal - Ipiales - El Espino, Vía Alterna Al Puerto De Tumaco", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 9000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Guachucal", "lat": 0.9608, "lng": -77.7322}, {"name": "Ipiales", "lat": 0.8303, "lng": -77.645}, {"name": "El Espino", "lat": 6.4836, "lng": -72.4942}]}, {"nombre": "Carretera Cucuta - Sardinata - Ocaña - Aguaclara Y Accesos", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 9000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Cucuta", "lat": 7.8939, "lng": -72.5078}, {"name": "Sardinata", "lat": 8.0844, "lng": -72.8042}, {"name": "Ocaña", "lat": 8.2378, "lng": -73.3561}, {"name": "Aguaclara", "lat": 7.1167, "lng": -73.2}]}, {"nombre": "Variante Calarcá - Circasia", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 8000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Calarcá", "lat": 4.5269, "lng": -75.6444}, {"name": "Circasia", "lat": 4.6175, "lng": -75.6358}]}, {"nombre": "Carretera Tame - Corocoro - Arauca", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 5785113852.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Tame", "lat": 6.4603, "lng": -71.7339}, {"name": "Corocoro", "lat": 6.6, "lng": -71.3}]}, {"nombre": "Carretera Tuquerres - Samaniego", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 5785113852.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Tuquerres", "lat": 1.0864, "lng": -77.6178}, {"name": "Samaniego", "lat": 1.3367, "lng": -77.5947}]}, {"nombre": "Carretera Altamira - Florencia", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 5500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Altamira", "lat": 2.0639, "lng": -75.7886}, {"name": "Florencia", "lat": 1.6144, "lng": -75.6062}]}, {"nombre": "Carretera El Carmen - Valledupar - Maicao", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 4000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "El Carmen", "lat": 8.5103, "lng": -73.4422}, {"name": "Valledupar", "lat": 10.4631, "lng": -73.2532}, {"name": "Maicao", "lat": 11.3776, "lng": -72.2386}]}, {"nombre": "Carretera Patico - La Plata De Los Circuitos Ecoturísticos Huila, Cauca", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 4000000000.0, "monto_ejecutado": 397041861.04, "pct": 9.9, "waypoints": [{"name": "Patico", "lat": 2.3, "lng": -76.3}, {"name": "La Plata", "lat": 2.3897, "lng": -75.8908}]}, {"nombre": "Carretera La Espriella - Rio Mataje-Conexión Transversal Tumaco Leticia Y El Ecuador", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 3000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "La Espriella", "lat": 1.5667, "lng": -78.7}, {"name": "Rio Mataje", "lat": 1.45, "lng": -78.85}]}, {"nombre": "Vía Sabaneta - Coveñas", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 3000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Sabaneta", "lat": 9.0, "lng": -75.6}, {"name": "Coveñas", "lat": 9.4053, "lng": -75.6886}]}, {"nombre": "Carretera Puente San Miguel - Espinal De La Troncal Del Magdalena", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 2500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Puente San Miguel", "lat": 0.4, "lng": -76.9}, {"name": "Espinal", "lat": 4.1497, "lng": -74.8847}]}, {"nombre": "Carretera Chinchiná - Manizales", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 1500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Chinchiná", "lat": 4.9826, "lng": -75.6047}, {"name": "Manizales", "lat": 5.0703, "lng": -75.5138}]}, {"nombre": "Vía Puerto Salgar - Puerto Araujo - La Lizama - San Alberto - San Roque De La Troncal Del Magdalena", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 1500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Puerto Salgar", "lat": 5.4658, "lng": -74.6494}, {"name": "Puerto Araujo", "lat": 6.5667, "lng": -73.85}, {"name": "La Lizama", "lat": 7.05, "lng": -73.65}, {"name": "San Alberto", "lat": 7.7611, "lng": -73.3911}, {"name": "San Roque", "lat": 6.4856, "lng": -75.0231}]}, {"nombre": "Carretera Chocontá-Cruce Ruta 56-Sisga-Guateque-Aguaclara", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 1000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Chocontá", "lat": 5.1456, "lng": -73.6856}, {"name": "Sisga", "lat": 5.1097, "lng": -73.7}, {"name": "Guateque", "lat": 5.0058, "lng": -73.4731}, {"name": "Aguaclara", "lat": 7.1167, "lng": -73.2}]}, {"nombre": "Carretera Club Campestre –armenia – Pereira – Chinchina – La Manuela - La Felisa Y Variantes, Troncal Del Eje Cafetero", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 1000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Club Campestre", "lat": 4.55, "lng": -75.66}, {"name": "armenia", "lat": 4.5339, "lng": -75.6811}, {"name": "Pereira", "lat": 4.8133, "lng": -75.6961}, {"name": "Chinchina", "lat": 4.9826, "lng": -75.6047}, {"name": "La Manuela", "lat": 5.05, "lng": -75.65}, {"name": "La Felisa", "lat": 5.4, "lng": -75.65}]}, {"nombre": "Carretera La Virginia - Apia, De La Conexión Troncal De Occidente - Transversal Las Animas-Bogotá Risaralda", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 1000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "La Virginia", "lat": 4.8983, "lng": -75.8836}, {"name": "Apia", "lat": 5.1067, "lng": -75.9408}]}, {"nombre": "Carretera Lorica - Chinu, Conexión Transversal Del Caribe - Troncal De Occidente", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 1000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Lorica", "lat": 9.2419, "lng": -75.8147}, {"name": "Chinu", "lat": 9.1056, "lng": -75.4006}]}, {"nombre": "Carretera Ocaña - La Ondina - Llano Grande - Convención", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 1000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Ocaña", "lat": 8.2378, "lng": -73.3561}, {"name": "La Ondina", "lat": 8.3, "lng": -73.4}, {"name": "Llano Grande", "lat": 8.35, "lng": -73.45}, {"name": "Convención", "lat": 8.4708, "lng": -73.3375}]}, {"nombre": "Carretera Yacopí - La Palma – Caparrapí - Dindal", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 1000000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Yacopí", "lat": 5.4631, "lng": -74.3372}, {"name": "La Palma", "lat": 5.3589, "lng": -74.3903}, {"name": "Caparrapí", "lat": 5.3461, "lng": -74.4914}, {"name": "Dindal", "lat": 5.4, "lng": -74.6}]}, {"nombre": "Carretera Cúcuta - Dos Rios - San Faustino - La China, Norte De Santander", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Cúcuta", "lat": 7.8939, "lng": -72.5078}, {"name": "Dos Rios", "lat": 8.0, "lng": -72.5}, {"name": "San Faustino", "lat": 8.05, "lng": -72.4}, {"name": "La China", "lat": 8.1, "lng": -72.35}]}, {"nombre": "Carretera Hobo - Yaguará", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Hobo", "lat": 2.5847, "lng": -75.4581}, {"name": "Yaguará", "lat": 2.6647, "lng": -75.5189}]}, {"nombre": "Carretera Leticia - Tarapacá Amazonas", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Leticia", "lat": -4.2153, "lng": -69.9406}, {"name": "Tarapacá", "lat": -2.8833, "lng": -69.7333}]}, {"nombre": "Vía Santana - La Gloria Del Acceso Transversal Carmen - Bosconia Del", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Santana", "lat": 5.95, "lng": -73.45}, {"name": "La Gloria", "lat": 8.6175, "lng": -73.8011}]}, {"nombre": "Vía Chaparral - Ortega - Guamo De La Alterna Buga - Puerto Inírida", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Chaparral", "lat": 3.7236, "lng": -75.4836}, {"name": "Ortega", "lat": 3.9356, "lng": -75.2197}, {"name": "Guamo", "lat": 4.0306, "lng": -74.9694}]}, {"nombre": "Via Circuito Medellin - Valle De Rio Negro", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "Medellin", "lat": 6.2442, "lng": -75.5812}, {"name": "Valle De Rio Negro", "lat": 6.15, "lng": -75.4}]}, {"nombre": "Carretera San Gil - Barichara - Guane", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 500000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "San  Gil", "lat": 6.5544, "lng": -73.1336}, {"name": "Barichara", "lat": 6.6356, "lng": -73.2233}, {"name": "Guane", "lat": 6.6, "lng": -73.25}]}, {"nombre": "Carretera San Cayetano - Cornejo - Zulia", "entidad": "Instituto Nacional de Vias - Transporte", "monto_asignado": 400000000.0, "monto_ejecutado": 0.0, "pct": 0.0, "waypoints": [{"name": "San Cayetano", "lat": 7.8742, "lng": -72.6256}, {"name": "Cornejo", "lat": 7.95, "lng": -72.7}, {"name": "Zulia", "lat": 7.9344, "lng": -72.6019}]}];
+
+/* ---- helpers ---- */
+const fmt = n => '$ ' + Math.round(n).toLocaleString('es-CO');
+const colorFor = p => p>=50?'#1a8a4a':p>=25?'#7cb342':p>=10?'#f4a72c':p>0?'#e8743b':'#c0392b';
+
+/* ---- mapa ---- */
+const map = L.map('map',{zoomControl:true,scrollWheelZoom:true}).setView([4.4,-73.6],6);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19
+}).addTo(map);
+
+const tip = document.getElementById('tip');
+const layers = [];           // {road, line}
+const bounds = L.latLngBounds([]);
+
+ROADS.forEach((road,i)=>{
+  const latlngs = road.waypoints.map(w=>[w.lat,w.lng]);
+  latlngs.forEach(ll=>bounds.extend(ll));
+  const col = colorFor(road.pct);
+  const line = L.polyline(latlngs,{color:col,weight:4,opacity:.85,lineCap:'round',lineJoin:'round'}).addTo(map);
+  // nodos
+  road.waypoints.forEach(w=>{
+    L.circleMarker([w.lat,w.lng],{radius:2.4,color:'#2c3138',weight:1,fillColor:'#fff',fillOpacity:.9})
+      .addTo(map).bindTooltip(w.name,{direction:'top',offset:[0,-3]});
+  });
+  line.on('mouseover',e=>{ activate(i,true); });
+  line.on('mousemove',e=>{ showTip(e.originalEvent,road); });
+  line.on('mouseout', ()=>{ deactivate(i); tip.style.display='none'; });
+  line.on('click', ()=>{ pin(i); map.fitBounds(line.getBounds().pad(0.4)); });
+  layers.push({road,line,col});
+});
+if(bounds.isValid()) map.fitBounds(bounds.pad(0.06));
+
+function showTip(ev,road){
+  tip.innerHTML = `<b>${road.nombre}</b><br><span class="ct-pct">${road.pct.toFixed(1)}% ejecutado</span><br>${fmt(road.monto_asignado)} asignados`;
+  tip.style.display='block';
+  const x=ev.clientX, y=ev.clientY;
+  tip.style.left=Math.min(x+14, window.innerWidth-tip.offsetWidth-12)+'px';
+  tip.style.top =Math.min(y+14, window.innerHeight-tip.offsetHeight-12)+'px';
+}
+
+let pinned = null;
+function activate(i,fromMap){
+  const {line,col,road}=layers[i];
+  line.setStyle({weight:8,opacity:1}); line.bringToFront();
+  fillFicha(road);
+  const it=document.querySelector(`.item[data-i="${i}"]`);
+  if(it){ it.classList.add('active'); if(!fromMap) it.scrollIntoView({block:'nearest'}); }
+}
+function deactivate(i){
+  if(pinned===i) return;             // mantener si está fijada
+  const {line}=layers[i];
+  line.setStyle({weight:4,opacity:.85});
+  const it=document.querySelector(`.item[data-i="${i}"]`); if(it) it.classList.remove('active');
+}
+function pin(i){
+  if(pinned!==null && pinned!==i){ const o=pinned; pinned=null; deactivate(o); }
+  pinned=i; activate(i,false);
+}
+
+function fillFicha(road){
+  document.getElementById('ficha-empty').style.display='none';
+  document.getElementById('ficha-body').style.display='block';
+  document.getElementById('f-name').textContent=road.nombre;
+  document.getElementById('f-ent').textContent=road.entidad;
+  const pct=road.pct;
+  document.getElementById('f-pct').textContent=pct.toFixed(1)+'%';
+  document.getElementById('f-pct').style.color=colorFor(pct);
+  const bar=document.getElementById('f-bar');
+  bar.style.width=Math.max(2,Math.min(100,pct))+'%'; bar.style.background=colorFor(pct);
+  document.getElementById('f-asig').textContent=fmt(road.monto_asignado);
+  document.getElementById('f-ejec').textContent=fmt(road.monto_ejecutado);
+  document.getElementById('f-rest').textContent=fmt(Math.max(0,road.monto_asignado-road.monto_ejecutado));
+}
+
+/* ---- lista ---- */
+const list=document.getElementById('list');
+ROADS.forEach((road,i)=>{
+  const el=document.createElement('div');
+  el.className='item'; el.dataset.i=i;
+  el.innerHTML=`<span class="dot" style="background:${colorFor(road.pct)}"></span>
+    <span class="nm">${road.nombre.replace(/^Carretera |^Vía |^Corredor |^Autopista |^Variante |^Túnel /,'')}</span>
+    <span class="pc">${road.pct.toFixed(0)}%</span>`;
+  el.addEventListener('mouseenter',()=>{ activate(i,false); });
+  el.addEventListener('mouseleave',()=>{ deactivate(i); });
+  el.addEventListener('click',()=>{ pin(i); map.fitBounds(layers[i].line.getBounds().pad(0.4)); });
+  list.appendChild(el);
+});
+
+/* ---- resumen ---- */
+const tA=ROADS.reduce((s,r)=>s+r.monto_asignado,0);
+const tE=ROADS.reduce((s,r)=>s+r.monto_ejecutado,0);
+document.getElementById('s-num').textContent=ROADS.length;
+document.getElementById('s-pct').textContent=(100*tE/tA).toFixed(1)+'%';
+document.getElementById('s-asig').textContent=fmt(tA);
+document.getElementById('s-ejec').textContent=fmt(tE);
+document.getElementById('s-gbar').style.width=(100*tE/tA)+'%';
+document.getElementById('list-count').textContent=ROADS.length+' rutas';
+</script>
+</body>
+</html>
